@@ -6,15 +6,32 @@ services:
         MYSQL_USER: root
         MYSQL_ROOT_PASSWORD: password
     ports:
-        - "3306:3306"
+        - "3307:3306"
     volumes:
         - ./db/mysql/volumes:/var/lib/mysql
   web:
     build: .
-    command: bash -c "rm -f tmp/pids/server.pid && bundle exec rails s -p 3000 -b '0.0.0.0'"
+    command: bash -c "rm -f tmp/pids/server.pid && bundle exec unicorn -p 3000 -c /myapp/config/unicorn.conf.rb"
     volumes:
       - .:/myapp
+      - tmp-data:/myapp/tmp/sockets
     ports:
       - "3000:3000"
     depends_on:
       - db
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - 8080:80
+    restart: always #明示的にstopさせるまでリスタートする。（失敗するたび遅延あり）
+    volumes:
+      - tmp-data:/myproject/tmp/sockets
+    depends_on:
+      - web 
+volumes:
+  public-data:
+  tmp-data:
+  mysql-data:
+
