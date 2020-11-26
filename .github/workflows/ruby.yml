@@ -1,0 +1,42 @@
+name: Rails
+
+on: [pull_request]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:5.6.47
+        options: --health-cmd "mysqladmin ping -h localhost" --health-interval 20s --health-timeout 10s --health-retries 10
+        env:
+          MYSQL_ROOT_PASSWORD: mysql123
+      redis:
+        image: redis:5.0-alpine
+        options: --health-cmd "redis-cli -h localhost ping" --health-interval 10s --health-timeout 5s --health-retries 15
+
+    container:
+      image: ruby:2.6.5
+      env:
+        DATABASE_URL: mysql2://root:mysql123@mysql:3306/rails6_sample
+        REDIS_URL: redis://redis:6379/1
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Setup YARN and NodeJS
+      run: |
+        curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -
+        echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list
+        curl -sL https://deb.nodesource.com/setup_13.x | bash -
+        apt-get install -y yarn nodejs
+    - name: Build and setup
+      run: |
+        rm -f config/database.yml
+        gem install bundler --no-document -v $(grep "BUNDLED WITH" -1 Gemfile.lock | tail -n 1)
+        bundle config set deployment 'true'
+        bundle install --jobs 4 --retry 3
+        bundle exec rails yarn:install db:setup assets:precompile
+    - name: Exec tests
+      run: bundle exec rake
